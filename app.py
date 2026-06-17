@@ -24,11 +24,11 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Configure Google Gemini API (Reads from your Streamlit Secrets or Environment Variables)
+# Configure Google Gemini API (Updated to force stable v1 endpoint)
 if "GEMINI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"], client_options={'api_endpoint': 'https://generativelanguage.googleapis.com'})
 elif os.environ.get("GEMINI_API_KEY"):
-    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), client_options={'api_endpoint': 'https://generativelanguage.googleapis.com'})
 else:
     st.warning("Gemini API Key missing. Please add it to your secrets or environment variables.")
 
