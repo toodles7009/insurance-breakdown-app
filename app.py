@@ -123,7 +123,7 @@ def main_workspace():
                 with st.spinner("Reading the document and extracting clauses..."):
                     try:
                         # Setup the AI model
-                     model = genai.GenerativeModel("gemini-pro")
+                     model = genai.GenerativeModel("gemini-1.5-flash-latest")
                         
                         # Convert uploaded file to bytes for the API
                         file_bytes = uploaded_file.read()
