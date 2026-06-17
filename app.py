@@ -120,10 +120,10 @@ def main_workspace():
         
         if uploaded_file is not None:
             if st.button("Execute AI Extraction"):
-                with st.spinner("Gemini is reading the document and extracting clauses..."):
+                with st.spinner("Reading the document and extracting clauses..."):
                     try:
                         # Setup the AI model
-                        model = genai.GenerativeModel("gemini-1.5-pro")
+                        model = genai.GenerativeModel("gemini-1.5-flash")
                         
                         # Convert uploaded file to bytes for the API
                         file_bytes = uploaded_file.read()
