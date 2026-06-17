@@ -1,7 +1,5 @@
+from google import genai
 import streamlit as st
-import sqlite3
-import bcrypt
-import google.generativeai as genai
 import os
 
 # ==========================================
@@ -24,13 +22,14 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Configure Google Gemini API (Updated to force stable v1 endpoint)
+# Configure the new Google GenAI Client
 if "GEMINI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"], client_options={'api_endpoint': 'https://generativelanguage.googleapis.com'})
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 elif os.environ.get("GEMINI_API_KEY"):
-    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), client_options={'api_endpoint': 'https://generativelanguage.googleapis.com'})
+    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 else:
-    st.warning("Gemini API Key missing. Please add it to your secrets or environment variables.")
+    st.warning("Gemini API Key missing.")
+    st.stop()
 
 # STRIPE CONFIGURATION (Replace with your actual Test Mode Link from your Stripe dashboard)
 STRIPE_PAYMENT_LINK = "https://buy.stripe.com/test_28E8wR67E3iz122eTFfIs01"
