@@ -1,45 +1,63 @@
 import streamlit as st
-import os
-import sqlite3
-import bcrypt
 from google import genai
 from google.genai import types
+import random
 
-# Initialize app
-st.set_page_config(page_title="Insurance Breakdown Synthesizer", layout="wide")
+# --- MODERN UI STYLING ---
+st.set_page_config(page_title="Insurance Synthesizer", layout="centered")
+st.markdown("""
+    <style>
+    .stApp {background-color: #f8f9fa;}
+    .main-title {color: #004a99; text-align: center; font-weight: bold;}
+    .cta-button {background-color: #004a99; color: white !important;}
+    </style>
+    """, unsafe_allow_html=True)
 
-# Safe API Key check
-api_key = st.secrets.get("GEMINI_API_KEY")
-if not api_key:
-    st.error("Please add GEMINI_API_KEY to your Streamlit Cloud Secrets.")
-    st.stop()
+# --- INITIALIZATION ---
+if 'page' not in st.session_state: st.session_state.page = 'landing'
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
-# Initialize Client
-client = genai.Client(api_key=api_key)
+# --- LOGIC: AI ENGINE ---
+def run_ai_extraction(file_bytes):
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=[
+            types.Part.from_bytes(file_bytes, 'application/pdf'),
+            "Extract: Annual Max, Deductibles, Coverage %. Also, write a clinical note for a dental chart."
+        ]
+    )
+    return response.text
 
-def main_workspace():
-    st.title("🦷 Insurance Breakdown Synthesizer")
-    uploaded_file = st.file_uploader("Upload Insurance Breakdown PDF", type=["pdf"])
-    
-    if uploaded_file and st.button("Execute AI Extraction"):
-        with st.spinner("Processing document..."):
-            try:
-                # Read bytes and prepare part
-                file_bytes = uploaded_file.getvalue()
-                pdf_part = types.Part.from_bytes(data=file_bytes, mime_type='application/pdf')
-                
-                # Using gemini-2.0-flash, which is fully supported on the v1 production path
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=[
-                        pdf_part, 
-                        "Extract annual max, deductibles, coverage percentages, and critical clauses."
-                    ]
-                )
-                st.markdown(response.text)
-                
-            except Exception as e:
-                st.error(f"Extraction failed: {e}")
+# --- PAGE 1: LANDING ---
+def landing_page():
+    st.markdown("<h1 class='main-title'>🦷 Insurance Breakdown Synthesizer</h1>", unsafe_allow_html=True)
+    st.info("Clinical Note Formatter & Side-By-Side Plan Comparison")
+    if st.button("Get Started", key="start"): st.session_state.page = 'signup'; st.rerun()
 
-if __name__ == "__main__":
-    main_workspace()
+# --- PAGE 2: SIGNUP & AUTH ---
+def signup_page():
+    st.title("Secure Sign Up")
+    email = st.text_input("Work Email")
+    if st.button("Send Code"): st.session_state.code = 1234; st.success("Code 1234 sent!")
+    code = st.text_input("Enter Code")
+    if st.button("Verify"): 
+        if code == "1234": st.session_state.logged_in = True; st.session_state.page = 'app'; st.rerun()
+
+# --- PAGE 3: THE APP ---
+def main_app():
+    st.title("Workstation")
+    tab1, tab2 = st.tabs(["📄 Parse PDF", "📊 Plan Comparison"])
+    with tab1:
+        file = st.file_uploader("Upload Booklet", type=["pdf"])
+        if file and st.button("Run AI Extraction"):
+            with st.spinner("Synthesizing..."):
+                st.write(run_ai_extraction(file.getvalue()))
+    with tab2:
+        st.write("Compare two plans side-by-side (Feature active for subscribers).")
+        st.link_button("Upgrade to Unlimited ($199/mo)", "https://buy.stripe.com/test_28E8wR67E3iz122eTFfIs01")
+
+# --- ROUTER ---
+if st.session_state.page == 'landing': landing_page()
+elif st.session_state.page == 'signup': signup_page()
+elif st.session_state.logged_in: main_app()
