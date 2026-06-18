@@ -2,36 +2,72 @@ import streamlit as st
 import os
 import sqlite3
 import bcrypt
-import base64
 from google import genai
+from google.genai import types
 
 # ==========================================
-# 1. INITIALIZATION
+# 1. INITIALIZATION & DATABASE
 # ==========================================
 st.set_page_config(page_title="Insurance Breakdown Synthesizer", layout="wide")
 
-# Database setup
 conn = sqlite3.connect("practice_vault.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute('''CREATE TABLE IF NOT EXISTS offices (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, upload_count INTEGER DEFAULT 0, is_subscribed INTEGER DEFAULT 0)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS offices 
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, 
+                   upload_count INTEGER DEFAULT 0, is_subscribed INTEGER DEFAULT 0)''')
 conn.commit()
 
-# Initialize Client using the new SDK
+# Initialize Client
 api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 if not api_key:
     st.error("Gemini API Key missing.")
     st.stop()
 
-# Correct initialization for google-genai
-client = genai.Client(api_key=api_key)
+# Force v1 endpoint for stability
+client = genai.Client(api_key=api_key, http_options={'api_version': 'v1'})
+
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "username" not in st.session_state: st.session_state.username = None
 
 # ==========================================
-# 2. MAIN WORKSPACE
+# 2. APP FUNCTIONS
 # ==========================================
+def auth_screen():
+    st.title("🦷 Insurance Breakdown Synthesizer")
+    tab1, tab2 = st.tabs(["Sign In", "Register Practice"])
+    with tab1:
+        login_user = st.text_input("Username", key="login_user")
+        login_pass = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Log In"):
+            cursor.execute("SELECT password FROM offices WHERE username=?", (login_user,))
+            result = cursor.fetchone()
+            if result and bcrypt.checkpw(login_pass.encode('utf-8'), result[0]):
+                st.session_state.logged_in = True
+                st.session_state.username = login_user
+                st.rerun()
+            else: st.error("Invalid credentials.")
+    with tab2:
+        reg_user = st.text_input("Choose Username", key="reg_user")
+        reg_pass = st.text_input("Choose Password", type="password", key="reg_pass")
+        if st.button("Register Account"):
+            hashed = bcrypt.hashpw(reg_pass.encode('utf-8'), bcrypt.gensalt())
+            try:
+                cursor.execute("INSERT INTO offices (username, password) VALUES (?, ?)", (reg_user, hashed))
+                conn.commit()
+                st.success("Account created!")
+            except: st.error("Username exists.")
+
 def main_workspace():
-    # ... (Keep your auth and sidebar logic here)
+    cursor.execute("SELECT upload_count FROM offices WHERE username=?", (st.session_state.username,))
+    row = cursor.fetchone()
+    upload_count = row[0] if row else 0
     
-    app_tab1, app_tab2 = st.tabs(["📄 Parse Insurance Booklet", "📊 Dual-Plan Comparison Matrix"])
+    st.sidebar.title("🏥 Practice Dashboard")
+    if st.sidebar.button("Log Out"):
+        st.session_state.logged_in = False
+        st.rerun()
+
+    app_tab1, _ = st.tabs(["📄 Parse Insurance Booklet", "📊 Comparison Matrix"])
     
     with app_tab1:
         st.header("Upload Insurance Breakdown PDF")
@@ -39,23 +75,25 @@ def main_workspace():
         
         if uploaded_file is not None:
             if st.button("Execute AI Extraction"):
-                with st.spinner("Extracting clauses..."):
+                with st.spinner("Processing with Gemini..."):
                     try:
+                        # Correct modern SDK file handling
                         file_bytes = uploaded_file.getvalue()
+                        pdf_part = types.Part.from_bytes(data=file_bytes, mime_type='application/pdf')
+                        prompt = "Extract annual max, deductibles, coverage percentages, and critical clauses."
                         
-                        # Correct call for the new SDK
-                        # Note: We pass data directly to contents
                         response = client.models.generate_content(
                             model="gemini-1.5-flash",
-                            contents=[
-                                {"mime_type": "application/pdf", "data": file_bytes},
-                                "Analyze this dental insurance breakdown PDF and extract: Annual Max, Deductibles, Coverage percentages, and critical clauses."
-                            ]
+                            contents=[pdf_part, prompt]
                         )
                         st.markdown(response.text)
+                        
+                        cursor.execute("UPDATE offices SET upload_count=? WHERE username=?", 
+                                       (upload_count + 1, st.session_state.username))
+                        conn.commit()
                     except Exception as e:
                         st.error(f"Extraction failed: {e}")
 
 if __name__ == "__main__":
-    # Ensure your auth logic triggers this
-    main_workspace()
+    if not st.session_state.logged_in: auth_screen()
+    else: main_workspace()
