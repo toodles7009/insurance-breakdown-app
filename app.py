@@ -1,47 +1,73 @@
 import streamlit as st
+import re
 from google import genai
 from google.genai import types
 
 # --- CONFIGURATION ---
 st.set_page_config(page_title="Insurance Synthesizer", layout="wide")
 
-# --- CUSTOM MODERN STYLING ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
-    .big-font {font-size:30px !important; font-weight:bold; color: #1e3a8a;}
-    .card {background: #ffffff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+    .card {background: #ffffff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);}
+    .title-text {font-size: 40px; font-weight: bold; color: #1e3a8a; text-align: center;}
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # --- STATE MANAGEMENT ---
 if 'page' not in st.session_state: st.session_state.page = 'landing'
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
-# --- LANDING PAGE ---
+# --- VALIDATION LOGIC ---
+def is_password_valid(password):
+    if len(password) < 8: return False
+    if not re.search("[a-z]", password): return False
+    if not re.search("[A-Z]", password): return False
+    if not re.search("[0-9]", password): return False
+    if not re.search("[!@#$%^&*(),.?\":{}|<>]", password): return False
+    return True
+
+# --- PAGES ---
 def landing_page():
-    # Hero Section
-    st.markdown("<p class='big-font'>Transform Insurance Booklets into Clinical Insights</p>", unsafe_allow_html=True)
+    st.markdown("<p class='title-text'>Dental Insurance, Simplified.</p>", unsafe_allow_html=True)
     col1, col2 = st.columns([1, 1])
-    
     with col1:
-        st.subheader("Your Practice, Optimized")
-        st.write("Stop wasting hours manually reading insurance booklets. Our AI synthesizes data, formats clinical notes, and compares plans in seconds.")
-        # Placeholders for modern UI visuals
         st.image("https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=600", caption="Modern Dental Analytics")
-    
     with col2:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.subheader("Get Started Today")
-        if st.button("Log In", use_container_width=True): st.session_state.page = 'login'; st.rerun()
-        if st.button("Sign Up", type="primary", use_container_width=True): st.session_state.page = 'signup'; st.rerun()
+        if st.button("Log In"): st.session_state.page = 'login'; st.rerun()
+        if st.button("Sign Up"): st.session_state.page = 'signup'; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- AUTH & MAIN APP (Logic Remains Consistent) ---
-def main_app():
+def auth_page(mode):
+    st.title(f"{mode.capitalize()} to Your Dashboard")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+    
+    if mode == "signup":
+        st.caption("Password must contain: Uppercase, Lowercase, Number, and Special Character.")
+        if st.button("Create Account"):
+            if is_password_valid(password):
+                st.success("Account Created! Redirecting...")
+                st.session_state.logged_in = True; st.session_state.page = 'app'; st.rerun()
+            else: st.error("Password does not meet requirements.")
+    else:
+        if st.button("Sign In"):
+            st.session_state.logged_in = True; st.session_state.page = 'app'; st.rerun()
+
+def app_page():
     st.title("🦷 Practice Workstation")
-    # ... (Insert your AI logic here as previously defined) ...
-    if st.button("Log Out"): st.session_state.page = 'landing'; st.rerun()
+    file = st.file_uploader("Upload Booklet", type=["pdf"])
+    if file and st.button("Run AI Extraction"):
+        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[types.Part.from_bytes(file.getvalue(), 'application/pdf'), "Extract key coverage data and draft a clinical note."]
+        )
+        st.write(response.text)
 
 # --- ROUTER ---
 if st.session_state.page == 'landing': landing_page()
-elif st.session_state.page == 'login': st.write("Login Form Placeholder")
-elif st.session_state.page == 'signup': st.write("Signup Form Placeholder")
+elif st.session_state.page == 'login': auth_page("login")
+elif st.session_state.page == 'signup': auth_page("signup")
+elif st.session_state.logged_in: app_page()
