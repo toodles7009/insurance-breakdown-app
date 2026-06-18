@@ -24,12 +24,17 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Initialize Client
+# Initialize Client with forced v1 API version
 api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 if not api_key:
     st.error("Gemini API Key missing.")
     st.stop()
-client = genai.Client(api_key=api_key)
+
+# Force v1 to avoid the 'v1beta' 404 error
+client = genai.Client(
+    api_key=api_key,
+    http_options={'api_version': 'v1'}
+)
 
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "username" not in st.session_state: st.session_state.username = None
@@ -81,14 +86,12 @@ def main_workspace():
             if st.button("Execute AI Extraction"):
                 with st.spinner("Extracting clauses..."):
                     try:
-                        # Prepare data for API
                         file_bytes = uploaded_file.getvalue()
                         b64_pdf = base64.b64encode(file_bytes).decode('utf-8')
                         
-                        prompt = """Analyze this dental insurance breakdown PDF and extract: 
-                        1. Annual Max, 2. Deductibles, 3. Coverage percentages, 4. Critical clauses (Missing tooth, Molar downgrades, Waiting periods)."""
+                        prompt = "Analyze this dental insurance breakdown PDF and extract annual max, deductibles, coverage percentages, and critical clauses (missing tooth, molar downgrades, waiting periods)."
                         
-                        # API call using the stable inline_data format
+                        # API call using stable inline_data format
                         response = client.models.generate_content(
                             model="gemini-1.5-flash",
                             contents=[
@@ -103,7 +106,6 @@ def main_workspace():
                         )
                         st.markdown(response.text)
                         
-                        # Update Usage
                         cursor.execute("UPDATE offices SET upload_count=? WHERE username=?", 
                                        (upload_count + 1, st.session_state.username))
                         conn.commit()
