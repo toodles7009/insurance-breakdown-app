@@ -35,7 +35,7 @@ def main_workspace():
     st.header("Upload Insurance Breakdown PDF")
     uploaded_file = st.file_uploader("Drop the PDF here", type=["pdf"])
     
-    # The file logic is now properly nested inside this function scope
+    # Logic is now correctly nested inside this function scope
     if uploaded_file is not None:
         if st.button("Execute AI Extraction"):
             with st.spinner("Processing with Gemini..."):
